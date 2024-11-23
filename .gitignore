@@ -1,0 +1,7 @@
+data/*
+debug_data/*
+wandb/*
+__pycache__/*
+*.pyc
+.ipynb_checkpoints/*
+models/*
