@@ -18,6 +18,7 @@ parser.add_argument("--pretrained_arch", type=str, default="gpt2")
 parser.add_argument("--cuda", action="store_true", default=False)
 parser.add_argument("--lr", type=float, default = 6e-4)
 parser.add_argument("--save_path", type=str, required=True)
+parser.add_argument("--load_path", type=str)
 parser.add_argument("--epochs", type=int, default=80)
 parser.add_argument("--sched_start", type=float, default=(1.0/3.0))
 parser.add_argument("--log_interval", type=int, default=1000)
@@ -32,11 +33,19 @@ config_kwargs = {"vocab_size": len(data.dictionary.word2idx)}
 config = transformers.AutoConfig.from_pretrained(args["pretrained_arch"], **config_kwargs)
 model = transformers.AutoModelForCausalLM.from_config(config)
 
+
 if args["cuda"]:
     model.cuda()
 
+
 optimizer = AdamW(model.parameters(), lr=args["lr"])
 scheduler = LinearLR(optimizer, start_factor=args["sched_start"])
+
+if args["load_path"] is not None:
+    checkpoint = torch.load(fn, map_location=torch.device("cuda") if args["cuda"] else torch.device("cpu"))
+    model.load_state_dict(checkpoint["model"])
+    optimizer.load_state_dict(checkpoint["optimizer"])
+    scheduler = checkpoint["scheduler"]
 
 model.gradient_checkpointing_enable()
 
@@ -65,7 +74,7 @@ def eval(model, data, seq_len, stride):
         avg_loss = torch.mean(torch.stack(losses))
     return avg_loss.item(), torch.exp(avg_loss).item()
     
-num_train_batches = len(train)//(args["seq_len"])  
+num_train_batches = len(train)-(args["seq_len"])  
 num_valid_batches = (len(valid)-args["seq_len"])//args["eval_stride"]  
 
 print(model)
