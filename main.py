@@ -52,10 +52,6 @@ model.gradient_checkpointing_enable()
 train = batchify(data.train, args["batch_size"], args["cuda"])
 valid = batchify(data.valid, args["batch_size"], args["cuda"])
 
-if min(len(valid), len(train)) < (args["seq_len"] * args["batch_size"]):
-    print("ERROR: Not enough data to allow for batch size/sequence length combination")
-    exit()
-
 if not args["debug"]:
     wandb.init(
         project = "GWikiGPT2",
@@ -74,12 +70,16 @@ def eval(model, data, seq_len, stride):
         avg_loss = torch.mean(torch.stack(losses))
     return avg_loss.item(), torch.exp(avg_loss).item()
     
-num_train_batches = len(train)-(args["seq_len"])  
+num_train_batches = len(train)//args["seq_len"]  
 num_valid_batches = (len(valid)-args["seq_len"])//args["eval_stride"]  
+
+if min(num_train_batches, num_valid_batches) < 1:
+    print("ERROR: Not enough data to allow for batch size/sequence length combination")
+    exit()
 
 print(model)
 print(args)
-print("num train tokens = {}".format(len(train)))
+print("num train tokens = {}".format(len(data.train)))
 print("num train batches/epoch = {}".format(num_train_batches))
 print("num valid tokens = {}".format(len(valid)))
 print("num valid batches = {}".format(num_valid_batches))
@@ -96,7 +96,7 @@ for epoch in range(args["epochs"]):
         batch = get_batch(train, step, args["seq_len"])
 
         if args["debug"]:
-            print("DEBUG: batch dims = {}".format(batch.size()))
+            print("DEBUG: batch dims = {}, step {}".format(batch.size(), step))
             for i in range(len(batch)):
                 print("\t".join(data.dictionary.idx2word[idx] for idx in batch[i]))
 
